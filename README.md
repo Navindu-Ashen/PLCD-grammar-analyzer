@@ -87,7 +87,7 @@ x + y * 2
 
 3. **Run locally:**
    ```bash
-   python main.py
+   functions-framework --target=parse_expression --debug
    ```
 
 4. **Test the API:**
