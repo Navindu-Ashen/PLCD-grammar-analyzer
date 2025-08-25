@@ -615,6 +615,88 @@ class GrammarParser:
             print(f"✗ PARSING FAILED: {str(e)}")
             self.parsing_successful = False
             return "syntax_error"
+    
+    def parse_input_silent(self, input_string: str):
+        """Parse input and return structured data without printing to stdout"""
+        self.parsing_successful = True
+        self.semantic_errors = []
+        
+        try:
+            # First tokenize (without printing)
+            self.lexemes_tokens = []
+            self.semantic_analyzer.reset()
+            
+            self.lexer.input(input_string)
+            
+            # Collect tokens
+            while True:
+                tok = self.lexer.token()
+                if not tok:
+                    break
+                
+                # Categorize tokens
+                token_category = ""
+                token_type = ""
+                
+                if tok.type in ['INT', 'DOUBLE', 'STRING_TYPE', 'BOOL_TYPE', 'IF', 'ELSE', 'WHILE', 'RETURN', 'VOID']:
+                    token_category = "Keywords"
+                    token_type = {
+                        'INT': 'int', 'DOUBLE': 'double', 'STRING_TYPE': 'string',
+                        'BOOL_TYPE': 'bool', 'IF': 'if', 'ELSE': 'else',
+                        'WHILE': 'while', 'RETURN': 'return', 'VOID': 'void'
+                    }.get(tok.type)
+                elif tok.type == 'ID':
+                    token_category = "Identifier"
+                    token_type = "identifier"
+                elif tok.type in ['PLUS', 'MINUS', 'MULTIPLY', 'DIVIDE', 'ASSIGN', 'GT', 'LT', 'GE', 'LE', 'EQ', 'NE']:
+                    token_category = "Operator"
+                    token_type = {
+                        'PLUS': '+', 'MINUS': '-', 'MULTIPLY': '*', 'DIVIDE': '/',
+                        'ASSIGN': '=', 'GT': '>', 'LT': '<', 'GE': '>=',
+                        'LE': '<=', 'EQ': '==', 'NE': '!='
+                    }.get(tok.type)
+                elif tok.type in ['LPAREN', 'RPAREN', 'LBRACE', 'RBRACE', 'SEMICOLON']:
+                    token_category = "Delimiter"
+                    token_type = {
+                        'LPAREN': '(', 'RPAREN': ')', 'LBRACE': '{',
+                        'RBRACE': '}', 'SEMICOLON': ';'
+                    }.get(tok.type)
+                elif tok.type in ['NUMBER', 'DECIMAL', 'STRING', 'BOOL']:
+                    token_category = "Literal"
+                    token_type = {
+                        'NUMBER': 'integer', 'DECIMAL': 'decimal',
+                        'STRING': 'string', 'BOOL': 'boolean'
+                    }.get(tok.type)
+                else:
+                    token_category = "Other"
+                    token_type = tok.type
+                
+                self.lexemes_tokens.append((tok.value, token_type, token_category))
+            
+            # Parse
+            result = self.parser.parse(input_string, lexer=self.lexer)
+            
+            # Filter out undeclared variable errors (allow undeclared variables)
+            self.semantic_errors = [error for error in self.semantic_errors 
+                                   if not ("not declared" in error)]
+            
+            # Set parse tree
+            if result is not None and self.parsing_successful:
+                self.parse_tree = result
+            
+            # Determine result status
+            if not self.parsing_successful:
+                return "syntax_error"
+            elif self.semantic_errors:
+                return "semantic_error"
+            elif result is not None:
+                return "success"
+            else:
+                return "syntax_error"
+                
+        except Exception as e:
+            self.parsing_successful = False
+            return "syntax_error"
 
 # Interactive user input
 def main():

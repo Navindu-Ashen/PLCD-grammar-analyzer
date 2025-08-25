@@ -65,8 +65,8 @@ def parse_expression(request: Request):
         # Initialize parser
         parser = GrammarParser()
         
-        # Parse the expression
-        result = parser.parse_input(expression)
+        # Parse the expression using the silent method (no stdout printing)
+        result = parser.parse_input_silent(expression)
         
         # Prepare response data
         response_data = {
