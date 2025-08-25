@@ -116,7 +116,8 @@ class GrammarParser:
     def __init__(self):
         self.tokens = ('ID', 'NUMBER', 'DECIMAL', 'STRING', 'BOOL', 'INT', 'DOUBLE', 'STRING_TYPE', 'BOOL_TYPE', 
                       'PLUS', 'MINUS', 'MULTIPLY', 'DIVIDE', 'ASSIGN', 'LPAREN', 'RPAREN', 
-                      'LBRACE', 'RBRACE', 'SEMICOLON', 'IF', 'ELSE', 'WHILE', 'RETURN', 'VOID')
+                      'LBRACE', 'RBRACE', 'SEMICOLON', 'IF', 'ELSE', 'WHILE', 'RETURN', 'VOID',
+                      'GT', 'LT', 'GE', 'LE', 'EQ', 'NE')
         self.semantic_analyzer = SemanticAnalyzer()
         self.lexemes_tokens = []
         self.parse_tree = None
@@ -138,6 +139,12 @@ class GrammarParser:
     t_LBRACE = r'\{'
     t_RBRACE = r'\}'
     t_SEMICOLON = r';'
+    t_GE = r'>='
+    t_LE = r'<='
+    t_EQ = r'=='
+    t_NE = r'!='
+    t_GT = r'>'
+    t_LT = r'<'
     t_ignore = ' \t'  # Ignore spaces and tabs
     
     # Reserved words
@@ -190,6 +197,16 @@ class GrammarParser:
     
     def p_statement_expression(self, p):
         '''statement : expression'''
+        p[0] = ParseNode('Statement')
+        p[0].add_child(p[1])
+    
+    def p_statement_if(self, p):
+        '''statement : if_statement'''
+        p[0] = ParseNode('Statement')
+        p[0].add_child(p[1])
+    
+    def p_statement_while(self, p):
+        '''statement : while_statement'''
         p[0] = ParseNode('Statement')
         p[0].add_child(p[1])
     
@@ -397,6 +414,67 @@ class GrammarParser:
         bool_node.add_child(ParseNode(p[1]))
         p[0].add_child(bool_node)
     
+    # If statement grammar rules
+    def p_if_statement(self, p):
+        '''if_statement : IF LPAREN condition RPAREN'''
+        p[0] = ParseNode('IfStatement')
+        p[0].add_child(ParseNode('if'))
+        p[0].add_child(ParseNode('('))
+        p[0].add_child(p[3])  # condition
+        p[0].add_child(ParseNode(')'))
+    
+    # While statement grammar rules
+    def p_while_statement(self, p):
+        '''while_statement : WHILE LPAREN condition RPAREN'''
+        p[0] = ParseNode('WhileStatement')
+        p[0].add_child(ParseNode('while'))
+        p[0].add_child(ParseNode('('))
+        p[0].add_child(p[3])  # condition
+        p[0].add_child(ParseNode(')'))
+    
+    # Condition grammar rules for comparison expressions
+    def p_condition_gt(self, p):
+        '''condition : expression GT expression'''
+        p[0] = ParseNode('Condition')
+        p[0].add_child(p[1])  # left expression
+        p[0].add_child(ParseNode('>'))
+        p[0].add_child(p[3])  # right expression
+    
+    def p_condition_lt(self, p):
+        '''condition : expression LT expression'''
+        p[0] = ParseNode('Condition')
+        p[0].add_child(p[1])  # left expression
+        p[0].add_child(ParseNode('<'))
+        p[0].add_child(p[3])  # right expression
+    
+    def p_condition_ge(self, p):
+        '''condition : expression GE expression'''
+        p[0] = ParseNode('Condition')
+        p[0].add_child(p[1])  # left expression
+        p[0].add_child(ParseNode('>='))
+        p[0].add_child(p[3])  # right expression
+    
+    def p_condition_le(self, p):
+        '''condition : expression LE expression'''
+        p[0] = ParseNode('Condition')
+        p[0].add_child(p[1])  # left expression
+        p[0].add_child(ParseNode('<='))
+        p[0].add_child(p[3])  # right expression
+    
+    def p_condition_eq(self, p):
+        '''condition : expression EQ expression'''
+        p[0] = ParseNode('Condition')
+        p[0].add_child(p[1])  # left expression
+        p[0].add_child(ParseNode('=='))
+        p[0].add_child(p[3])  # right expression
+    
+    def p_condition_ne(self, p):
+        '''condition : expression NE expression'''
+        p[0] = ParseNode('Condition')
+        p[0].add_child(p[1])  # left expression
+        p[0].add_child(ParseNode('!='))
+        p[0].add_child(p[3])  # right expression
+    
     def p_error(self, p):
         if p:
             print(f"Syntax Error: Unexpected token {p.type} ('{p.value}') at position {p.lexpos}")
@@ -442,14 +520,20 @@ class GrammarParser:
             elif tok.type == 'ID':
                 token_category = "Identifier"
                 token_type = "identifier"
-            elif tok.type in ['PLUS', 'MINUS', 'MULTIPLY', 'DIVIDE', 'ASSIGN']:
+            elif tok.type in ['PLUS', 'MINUS', 'MULTIPLY', 'DIVIDE', 'ASSIGN', 'GT', 'LT', 'GE', 'LE', 'EQ', 'NE']:
                 token_category = "Operator"
                 token_type = {
                     'PLUS': '+',
                     'MINUS': '-',
                     'MULTIPLY': '*',
                     'DIVIDE': '/',
-                    'ASSIGN': '='
+                    'ASSIGN': '=',
+                    'GT': '>',
+                    'LT': '<',
+                    'GE': '>=',
+                    'LE': '<=',
+                    'EQ': '==',
+                    'NE': '!='
                 }.get(tok.type)
             elif tok.type in ['LPAREN', 'RPAREN', 'LBRACE', 'RBRACE', 'SEMICOLON']:
                 token_category = "Delimiter"
@@ -494,6 +578,10 @@ class GrammarParser:
             
             result = self.parser.parse(input_string, lexer=self.lexer)
             
+            # Filter out undeclared variable errors (allow undeclared variables)
+            self.semantic_errors = [error for error in self.semantic_errors 
+                                   if not ("not declared" in error)]
+            
             # Check for syntax errors first
             if not self.parsing_successful:
                 print("✗ SYNTAX ERROR: Input rejected due to syntax error")
@@ -536,10 +624,12 @@ def main():
     print("Supports:")
     print("  - Keywords: int, double, string, bool, if, else, while, return, void")
     print("  - Identifiers: variable names (x, y, z, sum, count, etc.)")
-    print("  - Operators: +, -, *, /, =")
+    print("  - Operators: +, -, *, /, =, >, <, >=, <=, ==, !=")
     print("  - Delimiters: (), {}, ;")
     print("  - Literals: integers (1, 2, 3), decimals (3.14), strings (\"hello\"), booleans (true/false)")
     print("  - Variable declarations and expressions")
+    print("  - Conditional statements: if(condition)")
+    print("  - Loop statements: while(condition)")
     print("  - Syntax and semantic error detection")
     print("Examples:")
     print("  'int x = 5'")
@@ -547,7 +637,10 @@ def main():
     print("  'string name = \"John\"'")
     print("  'bool flag = true'")
     print("  'x + y * 2'")
-    print("  'if (x > 0) { return x; }'")
+    print("  'if(x > 9)'")
+    print("  'while(i < 7)'")
+    print("  'if(count >= 10)'")
+    print("  'while(value != 0)'")
     print("Type 'quit' or 'exit' to stop\n")
     
     while True:

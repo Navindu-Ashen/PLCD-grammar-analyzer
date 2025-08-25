@@ -102,8 +102,9 @@ def parse_expression(request: Request):
         if result in ["success", "semantic_error"]:
             response_data["semantic_analysis"]["variables_declared"] = dict(parser.semantic_analyzer.variables)
         
-        # Set appropriate HTTP status code
-        status_code = 200 if result == "success" else 400
+        # Always return 200 for successful parsing attempts (even if there are parsing errors)
+        # Only use 400/500 for request format issues or server errors
+        status_code = 200
         
         return jsonify(response_data), status_code, headers
         
