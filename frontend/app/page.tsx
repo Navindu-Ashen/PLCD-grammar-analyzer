@@ -57,14 +57,14 @@ export default function Home() {
 
     try {
       const response = await fetch(
-        "https://us-central1-cloudapi-465510.cloudfunctions.net/parse-expression",
+        "https://us-central1-uni-projects-472705.cloudfunctions.net/parse-expression",
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ expression }),
-        }
+        },
       );
 
       if (!response.ok) {
@@ -291,7 +291,9 @@ export default function Home() {
                       <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 flex-shrink-0" />
                     )}
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-gray-300">Overall Status</p>
+                      <p className="text-xs sm:text-sm text-gray-300">
+                        Overall Status
+                      </p>
                       <p className="text-sm sm:text-base text-white font-medium capitalize truncate">
                         {result.status}
                       </p>
@@ -304,7 +306,9 @@ export default function Home() {
                       <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 flex-shrink-0" />
                     )}
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-gray-300">Syntax Analysis</p>
+                      <p className="text-xs sm:text-sm text-gray-300">
+                        Syntax Analysis
+                      </p>
                       <p className="text-sm sm:text-base text-white font-medium truncate">
                         {result.syntax_analysis.accepted
                           ? "Accepted"
@@ -319,7 +323,9 @@ export default function Home() {
                       <XCircle className="w-5 h-5 sm:w-6 sm:h-6 text-red-400 flex-shrink-0" />
                     )}
                     <div className="min-w-0">
-                      <p className="text-xs sm:text-sm text-gray-300">Semantic Analysis</p>
+                      <p className="text-xs sm:text-sm text-gray-300">
+                        Semantic Analysis
+                      </p>
                       <p className="text-sm sm:text-base text-white font-medium truncate">
                         {result.semantic_analysis.errors.length === 0
                           ? "No Errors"
@@ -370,12 +376,12 @@ export default function Home() {
                                   token.category === "Keywords"
                                     ? "bg-blue-600/20 text-blue-300"
                                     : token.category === "Identifier"
-                                    ? "bg-green-600/20 text-green-300"
-                                    : token.category === "Operator"
-                                    ? "bg-yellow-600/20 text-yellow-300"
-                                    : token.category === "Literal"
-                                    ? "bg-purple-600/20 text-purple-300"
-                                    : "bg-gray-600/20 text-gray-300"
+                                      ? "bg-green-600/20 text-green-300"
+                                      : token.category === "Operator"
+                                        ? "bg-yellow-600/20 text-yellow-300"
+                                        : token.category === "Literal"
+                                          ? "bg-purple-600/20 text-purple-300"
+                                          : "bg-gray-600/20 text-gray-300"
                                 }`}
                               >
                                 {token.category}
@@ -477,7 +483,7 @@ export default function Home() {
                     </h4>
                     <div className="grid gap-2 sm:gap-3">
                       {Object.entries(
-                        result.semantic_analysis.variables_declared
+                        result.semantic_analysis.variables_declared,
                       ).map(([name, variable]) => (
                         <div
                           key={name}
@@ -560,7 +566,9 @@ export default function Home() {
         <div className="max-w-6xl mx-auto mt-8 sm:mt-12">
           <div className="text-center py-4 sm:py-6 border-t border-white/20 px-4">
             <p className="text-gray-400 text-xs sm:text-sm">
-              Programming Language Compiler Design Final Project<br />Built with Next.js, TypeScript, and Python
+              Programming Language Compiler Design Final Project
+              <br />
+              Built with Next.js, TypeScript, and Python
             </p>
           </div>
         </div>
