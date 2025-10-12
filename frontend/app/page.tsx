@@ -27,6 +27,11 @@ interface Variable {
   type: string;
 }
 
+interface BnfDerivationStep {
+  rule: string;
+  step: number;
+}
+
 interface AnalysisResponse {
   input_expression: string;
   lexical_analysis: {
@@ -41,6 +46,7 @@ interface AnalysisResponse {
   syntax_analysis: {
     accepted: boolean;
     errors?: string[];
+    bnf_derivation?: BnfDerivationStep[];
   };
 }
 
@@ -190,7 +196,7 @@ export default function Home() {
           </div>
 
           <div className="text-center my-8">
-            <h1 className="text-3xl sm:text-4xl uppercase lg:text-5xl font-bold text-slate-900 dark:text-white mb-4">
+            <h1 className="text-3xl sm:text-4xl uppercase lg:text-5xl font-bold text-slate-900 dark:text-white">
               Program Language Analyzer
             </h1>
             <p className="text-slate-600 dark:text-slate-400 text-lg">
@@ -538,6 +544,37 @@ export default function Home() {
                     </p>
                   </div>
                 )}
+
+                {/* BNF Derivation */}
+                {result.syntax_analysis.bnf_derivation &&
+                  result.syntax_analysis.bnf_derivation.length > 0 && (
+                    <div className="mt-6">
+                      <h4 className="text-lg font-medium text-slate-900 dark:text-white mb-3">
+                        BNF Grammar Derivation
+                      </h4>
+                      <div className="bg-slate-100 dark:bg-slate-700/50 border border-slate-300 dark:border-slate-600 rounded-lg p-4">
+                        <div className="space-y-3">
+                          {result.syntax_analysis.bnf_derivation.map(
+                            (derivation, index) => (
+                              <div
+                                key={index}
+                                className="flex items-start gap-3 p-3 bg-white dark:bg-slate-800/50 rounded-lg border border-slate-200 dark:border-slate-600"
+                              >
+                                <span className="flex-shrink-0 w-8 h-8 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center text-sm font-medium">
+                                  {derivation.step}
+                                </span>
+                                <div className="flex-1">
+                                  <code className="text-slate-900 dark:text-white font-mono text-sm bg-slate-200 dark:bg-slate-700 px-2 py-1 rounded">
+                                    {derivation.rule}
+                                  </code>
+                                </div>
+                              </div>
+                            ),
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
               </div>
 
               {/* Semantic Analysis */}
