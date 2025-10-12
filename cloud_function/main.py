@@ -7,15 +7,15 @@ import traceback
 def parse_expression(request: Request):
     """
     Google Cloud Function to parse expressions and return lexical, syntax, and semantic analysis.
-    
+
     Expected request body:
     {
         "expression": "int x = 5"
     }
-    
+
     Returns JSON response with all analysis results.
     """
-    
+
     # Handle CORS for browser requests
     if request.method == 'OPTIONS':
         headers = {
@@ -25,14 +25,14 @@ def parse_expression(request: Request):
             'Access-Control-Max-Age': '3600'
         }
         return ('', 204, headers)
-    
+
     # Set CORS headers for actual request
     headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST',
         'Access-Control-Allow-Headers': 'Content-Type'
     }
-    
+
     try:
         # Validate request method
         if request.method != 'POST':
@@ -40,19 +40,19 @@ def parse_expression(request: Request):
                 "error": "Method not allowed. Use POST method.",
                 "status": "error"
             }), 405, headers
-        
+
         # Get request data
         request_json = request.get_json(silent=True)
-        
+
         if not request_json:
             return jsonify({
                 "error": "Invalid JSON in request body",
                 "status": "error"
             }), 400, headers
-        
+
         # Extract expression from request
         expression = request_json.get('expression', '').strip()
-        
+
         if not expression:
             return jsonify({
                 "error": "Missing or empty 'expression' field in request body",
@@ -61,13 +61,13 @@ def parse_expression(request: Request):
                     "expression": "int x = 5"
                 }
             }), 400, headers
-        
+
         # Initialize parser
         parser = GrammarParser()
-        
+
         # Parse the expression using the silent method (no stdout printing)
         result = parser.parse_input_silent(expression)
-        
+
         # Prepare response data
         response_data = {
             "input_expression": expression,
@@ -78,14 +78,14 @@ def parse_expression(request: Request):
             },
             "syntax_analysis": {
                 "accepted": result in ["success", "semantic_error"],
-                "parse_tree": None
+                "bnf_derivation": []
             },
             "semantic_analysis": {
                 "errors": parser.semantic_errors,
                 "variables_declared": {}
             }
         }
-        
+
         # Add lexical analysis results (tokens)
         for lexeme, token_type, category in parser.lexemes_tokens:
             response_data["lexical_analysis"]["tokens"].append({
@@ -93,21 +93,23 @@ def parse_expression(request: Request):
                 "token_type": token_type,
                 "category": category
             })
-        
-        # Add parse tree if syntax was successful
+
+        # Add BNF derivation if syntax was successful
         if parser.parse_tree and result in ["success", "semantic_error"]:
-            response_data["syntax_analysis"]["parse_tree"] = serialize_parse_tree(parser.parse_tree)
-        
+            # Generate BNF derivation sequence
+            derivation_steps = parser.bnf_derivation.generate_derivation_sequence(parser.parse_tree, expression)
+            response_data["syntax_analysis"]["bnf_derivation"] = serialize_bnf_derivation(derivation_steps)
+
         # Add semantic analysis results
         if result in ["success", "semantic_error"]:
             response_data["semantic_analysis"]["variables_declared"] = dict(parser.semantic_analyzer.variables)
-        
+
         # Always return 200 for successful parsing attempts (even if there are parsing errors)
         # Only use 400/500 for request format issues or server errors
         status_code = 200
-        
+
         return jsonify(response_data), status_code, headers
-        
+
     except Exception as e:
         # Handle unexpected errors
         error_response = {
@@ -117,37 +119,31 @@ def parse_expression(request: Request):
         }
         return jsonify(error_response), 500, headers
 
-def serialize_parse_tree(node):
+def serialize_bnf_derivation(derivation_steps):
     """
-    Convert ParseNode tree structure to JSON-serializable format.
+    Convert BNF derivation steps to JSON-serializable format.
     """
-    if not node:
-        return None
-    
-    return {
-        "value": node.value,
-        "children": [serialize_parse_tree(child) for child in node.children] if node.children else []
-    }
+    return [{"step": i + 1, "rule": step} for i, step in enumerate(derivation_steps)]
 
 # For local testing with functions-framework
 if __name__ == "__main__":
     import functions_framework
     import os
-    
+
     # Set default port if not specified
     port = int(os.environ.get('PORT', 8080))
-    
+
     print(f"Starting Functions Framework server on port {port}")
     print("Test your function at: http://localhost:{port}")
     print("\nExample request:")
     print("curl -X POST http://localhost:{port} \\")
     print("  -H 'Content-Type: application/json' \\")
     print("  -d '{\"expression\": \"int x = 5\"}'")
-    
+
     # This will be handled by functions-framework CLI when run properly
     functions_framework._http_view_func_registry.clear()
     functions_framework.create_app(target=parse_expression, debug=True).run(
-        host='0.0.0.0', 
-        port=port, 
+        host='0.0.0.0',
+        port=port,
         debug=True
     )
