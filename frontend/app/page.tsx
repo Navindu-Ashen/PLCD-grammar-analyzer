@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   CheckCircle,
   XCircle,
@@ -9,6 +10,7 @@ import {
   Brain,
   AlertTriangle,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { ShineBorder } from "@/components/magicui/shine-border";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
@@ -111,7 +113,19 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showSplash, setShowSplash] = useState(true);
+  const [activeTab, setActiveTab] = useState<"overview" | "lexical" | "syntax" | "semantic">("overview");
+  const [copied, setCopied] = useState(false);
   const inputSectionRef = useRef<HTMLElement>(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  const presetExamples = [
+    "int x = 5",
+    "float y = 3.14",
+    "x + y * 2",
+    "if (x > 0)",
+    "while (i < 10)",
+  ];
 
   // Initialize theme on mount
   useEffect(() => {
@@ -129,8 +143,23 @@ export default function Home() {
     }
   }, []);
 
-  const analyzeExpression = async () => {
-    if (!expression.trim()) {
+  // Populate from shareable URL (?q=...)
+  useEffect(() => {
+    const q = searchParams?.get("q");
+    if (q) {
+      setExpression(q);
+      // Auto-analyze when expression comes from URL
+      // Delay to ensure initial render completes
+      setTimeout(() => {
+        analyzeExpression(q);
+      }, 0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const analyzeExpression = async (exprOverride?: string) => {
+    const exprToAnalyze = (exprOverride ?? expression).trim();
+    if (!exprToAnalyze) {
       setError("Please enter an expression");
       return;
     }
@@ -146,7 +175,7 @@ export default function Home() {
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ expression }),
+          body: JSON.stringify({ expression: exprToAnalyze }),
         },
       );
 
@@ -156,6 +185,11 @@ export default function Home() {
 
       const data = await response.json();
       setResult(data);
+      setActiveTab("overview");
+
+      // Update URL to be shareable without adding history entries
+      const url = `?q=${encodeURIComponent(exprToAnalyze)}`;
+      router.replace(url);
 
       // Scroll to input section after results are received
       setTimeout(() => {
@@ -175,6 +209,24 @@ export default function Home() {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       analyzeExpression();
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      analyzeExpression();
+    }
+  };
+
+  const handleCopyJson = async () => {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(result, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (_) {
+      // no-op
     }
   };
 
@@ -292,11 +344,12 @@ export default function Home() {
                   value={expression}
                   onChange={(e) => setExpression(e.target.value)}
                   onKeyPress={handleKeyPress}
+                  onKeyDown={handleKeyDown}
                   placeholder="Try: int x = 5, float y = x * 2.5, if (x == 5), etc."
                   className="flex-1 px-4 py-3 rounded-lg bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-500 dark:placeholder-slate-400 border border-slate-300 dark:border-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
                 />
                 <button
-                  onClick={analyzeExpression}
+                  onClick={() => analyzeExpression()}
                   disabled={loading}
                   className="px-8 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2 min-w-[140px]"
                 >
@@ -312,6 +365,24 @@ export default function Home() {
                     </>
                   )}
                 </button>
+              </div>
+              {/* Preset example chips and keyboard hint */}
+              <div className="mt-3 flex flex-wrap items-center gap-2 justify-between">
+                <div className="flex flex-wrap gap-2">
+                  {presetExamples.map((ex) => (
+                    <button
+                      key={ex}
+                      type="button"
+                      onClick={() => setExpression(ex)}
+                      className="text-xs px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                    >
+                      {ex}
+                    </button>
+                  ))}
+                </div>
+                <div className="text-xs text-slate-500 dark:text-slate-400">
+                  Press <span className="font-semibold">Enter</span> or <span className="font-semibold">Ctrl/Cmd+Enter</span>
+                </div>
               </div>
               {error && (
                 <div className="mt-4 p-3 bg-red-100 dark:bg-red-900/50 border border-red-300 dark:border-red-700 rounded-lg">
@@ -374,10 +445,22 @@ export default function Home() {
             <div className="space-y-6">
               {/* Status Overview */}
               <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg">
-                <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                  <CheckCircle className="w-6 h-6 text-blue-500 dark:text-blue-400" />
-                  Analysis Results
-                </h2>
+                <div className="flex items-start justify-between gap-4 mb-4">
+                  <h2 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <CheckCircle className="w-6 h-6 text-blue-500 dark:text-blue-400" />
+                    Analysis Results
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCopyJson}
+                      className="text-xs px-3 py-1.5 rounded-md bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center gap-1"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      {copied ? "Copied" : "Copy JSON"}
+                    </button>
+                  </div>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="flex items-center gap-3 p-4 bg-slate-100 dark:bg-slate-700/50 rounded-lg border border-slate-200 dark:border-slate-600">
                     {result.status === "success" ? (
@@ -431,12 +514,36 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Lexical Analysis */}
+              {/* Results Tabs */}
               <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg">
-                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Code className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                  Lexical Analysis
-                </h3>
+                <div className="flex flex-wrap items-center gap-2 mb-4">
+                  {[
+                    { key: "overview", label: "Overview" },
+                    { key: "lexical", label: "Lexical" },
+                    { key: "syntax", label: "Syntax" },
+                    { key: "semantic", label: "Semantic" },
+                  ].map((tab) => (
+                    <button
+                      key={tab.key}
+                      type="button"
+                      onClick={() => setActiveTab(tab.key as any)}
+                      className={`${
+                        activeTab === tab.key
+                          ? "bg-blue-600 text-white border-blue-600"
+                          : "bg-transparent text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-600"
+                      } border rounded-md px-3 py-1.5 text-sm transition-colors`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+
+                {activeTab === "lexical" && (
+                  <>
+                    <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                      <Code className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                      Lexical Analysis
+                    </h3>
                 <div className="overflow-x-auto">
                   <table className="w-full border-collapse">
                     <thead>
@@ -474,14 +581,15 @@ export default function Home() {
                     </tbody>
                   </table>
                 </div>
-              </div>
+                  </>
+                )}
 
-              {/* Syntax Analysis */}
-              <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg">
-                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Code className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                  Syntax Analysis
-                </h3>
+                {activeTab === "syntax" && (
+                  <>
+                    <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                      <Code className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                      Syntax Analysis
+                    </h3>
 
                 <div className="mb-4">
                   <div
@@ -575,14 +683,15 @@ export default function Home() {
                       </div>
                     </div>
                   )}
-              </div>
+                  </>
+                )}
 
-              {/* Semantic Analysis */}
-              <div className="bg-white/80 dark:bg-slate-800/50 backdrop-blur-sm rounded-xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg">
-                <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-blue-500 dark:text-blue-400" />
-                  Semantic Analysis
-                </h3>
+                {activeTab === "semantic" && (
+                  <>
+                    <h3 className="text-xl font-semibold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+                      <Brain className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                      Semantic Analysis
+                    </h3>
 
                 {Object.keys(result.semantic_analysis.variables_declared)
                   .length > 0 && (
@@ -663,6 +772,17 @@ export default function Home() {
                       <CheckCircle className="w-4 h-4 flex-shrink-0" />
                       No semantic errors found
                     </p>
+                  </div>
+                )}
+                  </>
+                )}
+
+                {activeTab === "overview" && (
+                  <div className="space-y-6">
+                    <div className="bg-slate-100 dark:bg-slate-800/50 rounded-lg p-4 border border-slate-200 dark:border-slate-700">
+                      <h4 className="text-blue-600 dark:text-blue-400 font-medium mb-2">Summary</h4>
+                      <p className="text-sm text-slate-700 dark:text-slate-400">Overall: {result.status}. Syntax: {result.syntax_analysis.accepted ? "Accepted" : "Rejected"}. Semantic errors: {result.semantic_analysis.errors.length}.</p>
+                    </div>
                   </div>
                 )}
               </div>
