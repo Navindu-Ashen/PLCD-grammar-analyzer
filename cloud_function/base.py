@@ -30,37 +30,137 @@ class SemanticAnalyzer:
         if not expression_node or not hasattr(expression_node, 'children'):
             return 'unknown'
 
-        # Look for the actual value in the parse tree
-        def find_value_type(node):
+        # Check if this is an expression with operators
+        operands_and_types = self._collect_operands_and_operators(expression_node)
+
+        if len(operands_and_types['operands']) > 1:
+            # This is a complex expression with operators
+            return self._analyze_expression_with_operators(operands_and_types)
+        elif len(operands_and_types['operands']) == 1:
+            # Single operand expression
+            return operands_and_types['operands'][0]
+        else:
+            # Fallback to old method
+            return self._find_single_value_type(expression_node)
+
+    def _collect_operands_and_operators(self, node):
+        """Collect all operands and operators from an expression tree"""
+        operands = []
+        operators = []
+
+        def traverse(node):
             if not hasattr(node, 'children'):
-                return 'unknown'
+                return
 
             for child in node.children:
-                if hasattr(child, 'value'):
-                    if child.value == 'number':
-                        return 'int'
-                    elif child.value == 'decimal':
-                        return 'double'
-                    elif child.value == 'string':
-                        return 'string'
-                    elif child.value == 'boolean':
-                        return 'bool'
-                    elif child.value == 'id':
-                        # Get the variable name from the id node
-                        if child.children and hasattr(child.children[0], 'value'):
-                            var_name = child.children[0].value
-                            if var_name in self.variables:
-                                return self.variables[var_name]['type']
-                            return 'undeclared'
+                if hasattr(child, 'production_rule'):
+                    # Check for operators
+                    if '+ →' in child.production_rule:
+                        operators.append('+')
+                    elif '* →' in child.production_rule:
+                        operators.append('*')
+                    elif 'ID →' in child.production_rule:
+                        # Extract variable name
+                        var_name = child.production_rule.split('ID → ')[1]
+                        if var_name in self.variables:
+                            operands.append(self.variables[var_name]['type'])
+                        else:
+                            operands.append('undeclared')
+                    elif 'NUMBER →' in child.production_rule:
+                        operands.append('int')
+                    elif 'DECIMAL →' in child.production_rule:
+                        operands.append('double')
+                    elif 'STRING →' in child.production_rule:
+                        operands.append('string')
+                    elif 'BOOLEAN →' in child.production_rule:
+                        operands.append('bool')
 
-                # Recursively search in children
-                result = find_value_type(child)
-                if result != 'unknown':
-                    return result
+                # Recursively traverse children
+                traverse(child)
 
+        traverse(node)
+        return {'operands': operands, 'operators': operators}
+
+    def _analyze_expression_with_operators(self, operands_and_types):
+        """Analyze expressions with operators for type compatibility"""
+        operands = operands_and_types['operands']
+        operators = operands_and_types['operators']
+
+        if not operands:
             return 'unknown'
 
-        return find_value_type(expression_node)
+        # For expressions with operators, check type compatibility
+        first_type = operands[0]
+
+        for i, op in enumerate(operators):
+            if i + 1 < len(operands):
+                second_type = operands[i + 1]
+
+                # Check if operation is valid between these types
+                if not self._is_operation_valid(first_type, op, second_type):
+                    return 'type_error'
+
+                # For now, assume the result type is the same as the first operand
+                # In a more sophisticated system, you'd have proper type promotion rules
+                first_type = self._get_result_type(first_type, op, second_type)
+
+        return first_type
+
+    def _is_operation_valid(self, type1, operator, type2):
+        """Check if an operation is valid between two types"""
+        # Define valid operations for each type combination
+        valid_ops = {
+            ('int', '+', 'int'): True,
+            ('int', '*', 'int'): True,
+            ('double', '+', 'double'): True,
+            ('double', '*', 'double'): True,
+            ('double', '+', 'int'): True,
+            ('int', '+', 'double'): True,
+            ('double', '*', 'int'): True,
+            ('int', '*', 'double'): True,
+            ('string', '+', 'string'): True,  # String concatenation
+        }
+
+        return valid_ops.get((type1, operator, type2), False)
+
+    def _get_result_type(self, type1, operator, type2):
+        """Get the result type of an operation between two types"""
+        # Simple type promotion rules
+        if type1 == 'double' or type2 == 'double':
+            return 'double'
+        elif type1 == 'string' or type2 == 'string':
+            return 'string'
+        else:
+            return type1
+
+    def _find_single_value_type(self, node):
+        """Find the type of a single value (fallback method)"""
+        if not hasattr(node, 'children'):
+            return 'unknown'
+
+        for child in node.children:
+            if hasattr(child, 'production_rule'):
+                if 'NUMBER →' in child.production_rule:
+                    return 'int'
+                elif 'DECIMAL →' in child.production_rule:
+                    return 'double'
+                elif 'STRING →' in child.production_rule:
+                    return 'string'
+                elif 'BOOLEAN →' in child.production_rule:
+                    return 'bool'
+                elif 'ID →' in child.production_rule:
+                    # Extract variable name
+                    var_name = child.production_rule.split('ID → ')[1]
+                    if var_name in self.variables:
+                        return self.variables[var_name]['type']
+                    return 'undeclared'
+
+            # Recursively search in children
+            result = self._find_single_value_type(child)
+            if result != 'unknown':
+                return result
+
+        return 'unknown'
 
     def check_type_compatibility(self, declared_type: str, expression_node, var_name: str) -> Optional[str]:
         """Check if the expression type is compatible with the declared variable type"""
@@ -71,6 +171,11 @@ class SemanticAnalyzer:
 
         if expr_type == 'unknown':
             return None  # Can't determine type, assume it's okay for now
+
+        if expr_type == 'type_error':
+            # Get more specific error message for type errors in expressions
+            operands_and_types = self._collect_operands_and_operators(expression_node)
+            return self._generate_type_error_message(operands_and_types, var_name)
 
         # Type compatibility rules
         if declared_type == expr_type:
@@ -90,6 +195,27 @@ class SemanticAnalyzer:
         expr_name = type_names.get(expr_type, expr_type)
 
         return f"Semantic Error: Cannot assign {expr_name} value to {declared_name} variable '{var_name}'"
+
+    def _generate_type_error_message(self, operands_and_types, var_name):
+        """Generate a specific error message for type errors in expressions"""
+        operands = operands_and_types['operands']
+        operators = operands_and_types['operators']
+
+        if len(operands) >= 2 and len(operators) >= 1:
+            type_names = {
+                'int': 'integer',
+                'double': 'decimal',
+                'string': 'string',
+                'bool': 'boolean'
+            }
+
+            type1_name = type_names.get(operands[0], operands[0])
+            type2_name = type_names.get(operands[1], operands[1])
+            op = operators[0]
+
+            return f"Semantic Error: Cannot perform '{op}' operation between {type1_name} and {type2_name} in assignment to variable '{var_name}'"
+
+        return f"Semantic Error: Type mismatch in expression assigned to variable '{var_name}'"
 
     def reset(self):
         """Reset the analyzer for new input"""
