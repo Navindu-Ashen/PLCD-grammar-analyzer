@@ -16,7 +16,6 @@ def parse_expression(request: Request):
     Returns JSON response with all analysis results.
     """
 
-    # Handle CORS for browser requests
     if request.method == 'OPTIONS':
         headers = {
             'Access-Control-Allow-Origin': '*',
@@ -26,7 +25,6 @@ def parse_expression(request: Request):
         }
         return ('', 204, headers)
 
-    # Set CORS headers for actual request
     headers = {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'POST',
@@ -34,14 +32,12 @@ def parse_expression(request: Request):
     }
 
     try:
-        # Validate request method
         if request.method != 'POST':
             return jsonify({
                 "error": "Method not allowed. Use POST method.",
                 "status": "error"
             }), 405, headers
 
-        # Get request data
         request_json = request.get_json(silent=True)
 
         if not request_json:
@@ -50,7 +46,6 @@ def parse_expression(request: Request):
                 "status": "error"
             }), 400, headers
 
-        # Extract expression from request
         expression = request_json.get('expression', '').strip()
 
         if not expression:
@@ -62,13 +57,10 @@ def parse_expression(request: Request):
                 }
             }), 400, headers
 
-        # Initialize parser
         parser = GrammarParser()
 
-        # Parse the expression using the silent method (no stdout printing)
         result = parser.parse_input_silent(expression)
 
-        # Prepare response data
         response_data = {
             "input_expression": expression,
             "status": "success" if result == "success" else "error",
@@ -86,7 +78,6 @@ def parse_expression(request: Request):
             }
         }
 
-        # Add lexical analysis results (tokens)
         for lexeme, token_type, category in parser.lexemes_tokens:
             response_data["lexical_analysis"]["tokens"].append({
                 "lexeme": lexeme,
@@ -94,24 +85,18 @@ def parse_expression(request: Request):
                 "category": category
             })
 
-        # Add BNF derivation if syntax was successful
         if parser.parse_tree and result in ["success", "semantic_error"]:
-            # Generate BNF derivation sequence
             derivation_steps = parser.bnf_derivation.generate_derivation_sequence(parser.parse_tree, expression)
             response_data["syntax_analysis"]["bnf_derivation"] = serialize_bnf_derivation(derivation_steps)
 
-        # Add semantic analysis results
         if result in ["success", "semantic_error"]:
             response_data["semantic_analysis"]["variables_declared"] = dict(parser.semantic_analyzer.variables)
 
-        # Always return 200 for successful parsing attempts (even if there are parsing errors)
-        # Only use 400/500 for request format issues or server errors
         status_code = 200
 
         return jsonify(response_data), status_code, headers
 
     except Exception as e:
-        # Handle unexpected errors
         error_response = {
             "error": f"Internal server error: {str(e)}",
             "status": "error",
@@ -125,12 +110,10 @@ def serialize_bnf_derivation(derivation_steps):
     """
     return [{"step": i + 1, "rule": step} for i, step in enumerate(derivation_steps)]
 
-# For local testing with functions-framework
 if __name__ == "__main__":
     import functions_framework
     import os
 
-    # Set default port if not specified
     port = int(os.environ.get('PORT', 8080))
 
     print(f"Starting Functions Framework server on port {port}")
@@ -140,7 +123,6 @@ if __name__ == "__main__":
     print("  -H 'Content-Type: application/json' \\")
     print("  -d '{\"expression\": \"int x = 5\"}'")
 
-    # This will be handled by functions-framework CLI when run properly
     functions_framework._http_view_func_registry.clear()
     functions_framework.create_app(target=parse_expression, debug=True).run(
         host='0.0.0.0',
